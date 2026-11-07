@@ -7,6 +7,7 @@ import { defineTask } from 'nitro/task'
 import { createClient } from 'skland-kit'
 import { createContext } from 'unctx'
 import { attendCharacter, createMessageCollector, generateAttendanceKey, getSplitByComma } from '~/utils/index'
+import { retry } from '~/utils/retry'
 
 interface GameStats {
   gameName: string
@@ -72,7 +73,13 @@ async function processAccount(
   messageCollector.info(`开始处理...`)
 
   const client = createClient()
-  const { code } = await client.collections.hypergryph.grantAuthorizeCode(token)
+  const { code } = await retry(
+    () => client.collections.hypergryph.grantAuthorizeCode(token),
+    {
+      retries: maxRetries,
+      onRetry: retriesLeft => messageCollector.log(`获取授权码失败，剩余重试次数: ${retriesLeft}`),
+    },
+  )
   await client.signIn(code)
 
   const { list } = await client.collections.player.getBinding()
